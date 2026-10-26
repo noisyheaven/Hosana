@@ -1,0 +1,20 @@
+{
+  "name": "toko-rohani-android",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Pembungkus Android (Capacitor) untuk panel kasir/admin Toko Asesoris Rohani",
+  "scripts": {
+    "web": "node scripts/prepare-web.js",
+    "add": "node scripts/prepare-web.js && npx cap add android && node scripts/patch-android.js && npx cap sync android",
+    "sync": "npm run web && node scripts/patch-android.js && npx cap sync android",
+    "open": "npx cap open android",
+    "apk": "node scripts/build-apk.js"
+  },
+  "dependencies": {
+    "@capacitor/android": "^7.0.0",
+    "@capacitor/core": "^7.0.0"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^7.0.0"
+  }
+}

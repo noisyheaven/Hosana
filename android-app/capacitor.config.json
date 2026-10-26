@@ -1,0 +1,12 @@
+{
+  "appId": "id.toko.rohani",
+  "appName": "Toko Rohani",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "http",
+    "cleartext": true
+  },
+  "android": {
+    "allowMixedContent": true
+  }
+}
