@@ -1,0 +1,16 @@
+{
+  "name": "Admin Toko Asesoris Rohani",
+  "short_name": "Toko Rohani",
+  "description": "Kasir, stok, gudang, purchase order dan laporan toko asesoris rohani",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#23395b",
+  "theme_color": "#23395b",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
