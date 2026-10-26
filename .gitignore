@@ -1,0 +1,7 @@
+node_modules/
+data/
+certs/
+android-app/android/
+android-app/www/
+android-app/node_modules/
+*.log
