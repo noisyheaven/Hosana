@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#1b2340">
+<title>Toko Asesoris Rohani</title>
+<link rel="icon" href="icon-192.png">
+<link rel="stylesheet" href="shop.css">
+</head>
+<body>
+<header class="bar">
+  <div class="wrap bar-in">
+    <a class="logo" href="./" id="logo">Toko Asesoris Rohani</a>
+    <input class="search" id="q" type="search" placeholder="Cari rosario, kalung, lilin…" aria-label="Cari barang">
+    <button class="link" id="track">Lacak<span class="lg"> pesanan</span></button>
+    <button class="cartbtn" id="cartbtn" aria-label="Buka keranjang">Keranjang <span id="cartn">0</span></button>
+  </div>
+</header>
+
+<main class="wrap">
+  <nav class="cats" id="cats" aria-label="Kategori"></nav>
+  <p class="count" id="count" aria-live="polite"></p>
+  <section class="grid" id="grid"></section>
+</main>
+
+<footer class="foot"><div class="wrap" id="foot"></div></footer>
+
+<div class="scrim" id="scrim"></div>
+<aside class="sheet" id="sheet" aria-hidden="true" role="dialog" aria-label="Keranjang"></aside>
+<div class="toast" id="toast" role="status"></div>
+<script src="shop.js"></script>
+</body>
+</html>
