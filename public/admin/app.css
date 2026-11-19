@@ -150,3 +150,101 @@ table.t{width:100%;border-collapse:collapse}
 .notice.warn{background:var(--warn-soft);color:#7a4a08}.notice.bad{background:var(--bad-soft);color:var(--bad)}
 .timeline>div{border-left:3px solid var(--accent);padding:2px 0 10px 12px;margin-left:4px}
 @media print{.side,.top,.scrim,#toasts,.noprint,.btn{display:none!important}.main{margin:0}#view{padding:0}.card{box-shadow:none;border:1px solid #ccc}body{background:#fff}}
+
+.downbar{background:var(--bad-soft);color:var(--bad);border-bottom:1px solid #e3b6b1;padding:9px 18px;font-weight:600;font-size:.92rem}
+
+/* Cek Stok */
+.cekwrap{max-width:720px;margin:0 auto}
+#res .card+.card{margin-top:12px}
+.cek h2{font-size:1.15rem}
+.stk{border:1px solid var(--line);border-radius:12px;padding:10px 12px;text-align:center;background:#fff}
+.stk span{display:block;font-size:.82rem;color:var(--muted);font-weight:600}
+.stk b{display:block;font-size:2rem;line-height:1.1;color:var(--primary)}
+.stk.zero b{color:var(--bad)}
+.stk small{color:var(--muted)}
+.stkrow{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+@media(max-width:480px){.stk b{font-size:1.6rem}.stk span{font-size:.72rem}.stkrow{gap:6px}.stk{padding:8px 6px}}
+
+[hidden]{display:none!important}
+
+.cekhead{cursor:pointer}.cekhead:focus-visible{outline:2px solid var(--primary,#1f3a5f);outline-offset:3px;border-radius:8px}
+
+/* hak akses role */
+.pgroup{border:1px solid var(--line);border-radius:10px;padding:6px 12px 8px;margin:0 0 10px}.pgroup legend{font-weight:800;padding:0 6px}
+.chk.perm{align-items:flex-start;padding:5px 0}.chk.perm input{margin-top:2px;flex:none}.chk.perm.sub{margin-left:28px}
+
+/* ---------- POS "cari dulu" (Kasir) ---------- */
+.thumb.sm{width:36px;height:36px;font-size:.8rem;border-radius:9px}
+.pos2{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:16px;align-items:start}
+.pos2-main{display:flex;flex-direction:column;gap:12px;min-width:0}
+.pos2-side{position:sticky;top:70px}
+.cmd{position:relative;z-index:25}
+.cmd-bar{display:flex;align-items:center;gap:8px;background:#fff;border:2px solid var(--line);border-radius:16px;padding:7px 8px 7px 14px;box-shadow:var(--shadow);transition:border-color .15s,box-shadow .15s}
+.cmd-bar:focus-within{border-color:var(--primary);box-shadow:0 0 0 4px rgba(35,57,91,.12),var(--shadow)}
+.cmd-ic{font-size:1.15rem;opacity:.6}
+.cmd-inp{flex:1;min-width:0;border:none;outline:none;background:none;font-size:1.15rem;padding:9px 2px}
+.cmd-res{position:absolute;left:0;right:0;top:calc(100% + 6px);background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:0 14px 40px rgba(29,36,51,.18);max-height:62vh;overflow-y:auto}
+.rrow{display:flex;align-items:center;gap:10px;width:100%;border:none;background:none;padding:9px 12px;cursor:pointer;text-align:left;border-bottom:1px solid #f4f0e6}
+.rrow:hover,.rrow.act{background:var(--accent-soft)}.rrow.out{opacity:.5}
+.rmain{flex:1;min-width:0;display:flex;flex-direction:column}
+.rmain b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rpr{font-weight:800;color:var(--primary);font-variant-numeric:tabular-nums;min-width:86px;text-align:right}
+.rnone{padding:20px;text-align:center;color:var(--muted)}
+.rhint{padding:7px 12px;font-size:.76rem;color:var(--muted);background:#faf8f3}
+.recent{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.recent>span{font-size:.8rem;color:var(--muted);font-weight:600}
+.rchip{border:1px solid var(--line);background:#fff;border-radius:99px;padding:5px 12px;cursor:pointer;font-size:.85rem;font-weight:600;max-width:210px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rchip:hover{border-color:var(--accent);background:var(--accent-soft)}.rchip.out{opacity:.45}
+.cartcard{min-height:280px}
+.cl{display:grid;grid-template-columns:auto minmax(0,1fr) auto 112px 30px;align-items:center;gap:10px;padding:10px 4px;border-bottom:1px solid #f0ece1}
+.cl:last-child{border-bottom:none}
+.cl.flash{animation:clflash .9s ease-out}
+@keyframes clflash{from{background:var(--accent-soft)}to{background:transparent}}
+.cl-n b{display:block;line-height:1.25}
+.cl-t{text-align:right;font-weight:800;font-variant-numeric:tabular-nums}
+.cl-x{border:none;background:none;color:var(--muted);cursor:pointer;font-size:1rem;width:30px;height:30px;border-radius:8px}
+.cl-x:hover{background:var(--bad-soft);color:var(--bad)}
+.cart-empty{text-align:center;padding:44px 10px;color:var(--muted)}
+.cart-empty .ico{font-size:2.6rem;opacity:.5}
+.kbd{font:600 .72rem ui-monospace,Menlo,Consolas,monospace;border:1px solid var(--line);border-bottom-width:2px;border-radius:6px;padding:1px 6px;background:#faf8f3;color:var(--muted);white-space:nowrap}
+.btn.primary .kbd{background:rgba(255,255,255,.18);border-color:rgba(255,255,255,.35);color:#fff}
+.payc{display:flex;flex-direction:column}
+.paytotal{background:var(--primary);color:#fff;border-radius:14px;padding:14px 16px}
+.paytotal .muted{color:#b9c5dc;font-size:.82rem}
+.paytotal .big{font-size:2.1rem;font-weight:800;font-variant-numeric:tabular-nums;line-height:1.15}
+.inp.ro{display:flex;align-items:center;justify-content:flex-end;background:#faf8f3;font-weight:700}
+.seg{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.seg button{border:1px solid var(--line);background:#fff;border-radius:10px;padding:9px 2px;font-weight:700;font-size:.8rem;cursor:pointer}
+.seg button.on{background:var(--primary);color:#fff;border-color:var(--primary)}
+.chgbox{display:flex;justify-content:space-between;align-items:center;background:var(--ok-soft);color:var(--ok);border-radius:10px;padding:10px 12px;margin-top:8px}
+.chgbox b{font-size:1.3rem;font-variant-numeric:tabular-nums}
+.paybar{display:none}
+@media(max-width:1100px){.pos2{grid-template-columns:1fr}.pos2-side{position:static}}
+@media(max-width:900px){
+  .pos2{padding-bottom:76px}
+  .cmd-bar .kbd{display:none}
+  .cl{grid-template-columns:auto minmax(0,1fr) auto}
+  .cl>:nth-child(1){grid-area:1/1/3/2}.cl>.cl-n{grid-area:1/2/2/3}.cl>.cl-x{grid-area:1/3/2/4}
+  .cl>.qtybox{grid-area:2/2/3/3;justify-self:start}.cl>.cl-t{grid-area:2/3/3/4}
+  .paybar{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:35;justify-content:space-between;align-items:center;gap:12px;background:#fff;border-top:1px solid var(--line);padding:10px 14px;box-shadow:0 -6px 20px rgba(29,36,51,.12)}
+  .paybar b{font-size:1.3rem;font-variant-numeric:tabular-nums}
+}
+@media(max-width:560px){#browse,#cam{padding:8px 11px}.cmd-bar .bt{display:none}.cmd-inp{font-size:1.05rem}.cartcard{min-height:0}}
+
+/* ---------- Kartu Stok ---------- */
+.kc-filters{display:grid;grid-template-columns:170px 190px 170px 160px 160px auto;gap:12px;align-items:end}
+@media(max-width:1100px){.kc-filters{grid-template-columns:1fr 1fr 1fr}}
+@media(max-width:700px){.kc-filters{grid-template-columns:1fr 1fr}}
+.kc-tr{align-self:center}.chk.f{display:flex;gap:6px;align-items:center}
+.kc-itembox{border:1px solid var(--line);border-radius:8px;padding:8px 12px;background:#faf8f3}
+.kc-scroll{max-height:62vh;overflow:auto}.kc-scroll thead th{position:sticky;top:0;background:#f1ede3;z-index:1}
+.kc-row{cursor:pointer}.kc-row.kc-sel td{background:#d9f2c4}
+.kc-foot{display:flex;justify-content:flex-end;gap:28px;align-items:baseline;flex-wrap:wrap}.kc-foot span{color:var(--muted,#777);margin-right:8px;font-size:13px}.kc-foot b{font-size:17px}.kc-avail b{font-size:20px}
+.kc-in{color:var(--ok);font-weight:700}.kc-out{color:var(--bad);font-weight:700}
+.stat .v.kc-in,.stat .v.kc-out{font-weight:800}
+.kc-open td{background:#faf8f3}.kc-sum td{background:#faf8f3;border-top:2px solid var(--line)}
+.kc-t td,.kc-t th{white-space:nowrap}.kc-t td:nth-child(2){white-space:normal;min-width:170px}
+
+.brk{background:var(--accent-soft);border-radius:10px;padding:8px 12px;font-size:.9rem;display:grid;gap:4px}
+.brk .muted{color:var(--muted)}
+.kc-card td:nth-child(2){min-width:0;white-space:nowrap}.kc-card td:nth-child(5){white-space:normal;min-width:190px}

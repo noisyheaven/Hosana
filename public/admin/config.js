@@ -1,4 +1,2 @@
-// Alamat server API.
-// - Dibuka lewat browser dari server ini: biarkan kosong ('').
-// - Dibungkus jadi APK (Capacitor): isi lewat layar login ("Alamat server"), atau set di sini, mis. 'http://192.168.1.10:3000'
+// Alamat server API. Biarkan kosong ('') karena aplikasi dibuka dari alamat server itu sendiri.
 window.API_BASE = '';

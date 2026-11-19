@@ -14,8 +14,14 @@
   const fmtDT = (s) => { if (!s) return '-'; const m = /^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2}))?/.exec(s); if (!m) return s; return `${+m[3]} ${MON[+m[2] - 1]} ${m[1]}${m[4] ? ' ' + m[4] + ':' + m[5] : ''}`; };
   const fmtD = (s) => fmtDT(String(s || '').slice(0, 10));
   const ymd = (d = new Date()) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
-  const RANK = { staf: 1, admin: 2, superadmin: 3 };
-  const can = (role) => S.user && RANK[S.user.role] >= RANK[role];
+  // Hak akses: daftar kunci hak dikirim server (S.user.perms) dan dicek ulang di server pada setiap permintaan.
+  // can('kunci') | can(['a','b']) = salah satu | can('superadmin') = khusus Super Admin. Super Admin selalu lolos.
+  const can = (need) => {
+    const u = S.user; if (!u) return false;
+    if (u.role === 'superadmin') return true;
+    if (need === 'superadmin') return false;
+    return (Array.isArray(need) ? need : [need]).some((k) => (u.perms || []).includes(k));
+  };
   const initials = (n) => String(n || '?').split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
   const debounce = (fn, ms = 250) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };
   const PAY = { tunai: 'Tunai', transfer: 'Transfer', qris: 'QRIS', debit: 'Debit/Kartu', cod: 'COD (bayar di tempat)' };
@@ -23,9 +29,14 @@
   const PO_ST = { draft: ['Draft', ''], submitted: ['Diajukan', 'info'], approved: ['Disetujui', 'warn'], partial: ['Diterima sebagian', 'warn'], received: ['Selesai diterima', 'ok'], cancelled: ['Dibatalkan', 'bad'] };
   const badge = (map, k) => { const m = map[k] || [k, '']; return `<span class="badge ${m[1]}">${esc(m[0])}</span>`; };
   Object.assign(App, { $, $$, esc, num, rp, fmtDT, fmtD, ymd, can, initials, debounce, PAY, ORDER_ST, PO_ST, badge });
+  // 3 lokasi stok
+  App.LOC = { display: 'Display Toko', gudang_toko: 'Gudang Toko', gudang_ruko: 'Gudang Ruko' };
+  App.LOC_SHORT = { display: 'Display', gudang_toko: 'Gdg Toko', gudang_ruko: 'Gdg Ruko' };
+  App.QTYKEY = { display: 'display_qty', gudang_toko: 'gt_qty', gudang_ruko: 'gr_qty' };
+  App.locOptions = (keys, sel) => keys.map((k) => `<option value="${k}"${k === sel ? ' selected' : ''}>${App.LOC[k]}</option>`).join('');
 
   // ---------- API ----------
-  App.apiBase = () => { try { return localStorage.getItem('apiBase') || window.API_BASE || ''; } catch (_) { return window.API_BASE || ''; } };
+  App.apiBase = () => window.API_BASE || '';
   App.api = async function (path, { method = 'GET', body, raw } = {}) {
     let r;
     try {
@@ -34,6 +45,7 @@
     if (raw) { if (!r.ok) { let d = {}; try { d = await r.json(); } catch (_) {} throw new Error(d.error || 'Gagal'); } return r; }
     let d = {}; try { d = await r.json(); } catch (_) {}
     if (r.status === 401 && S.token) { App.onLogout && App.onLogout(true); throw new Error(d.error || 'Sesi berakhir'); }
+    if (r.status === 403 && S.token && App.onForbidden) App.onForbidden(); // hak akses mungkin baru diubah superadmin: segarkan menu
     if (!r.ok) throw new Error(d.error || 'Terjadi kesalahan');
     return d;
   };
@@ -135,19 +147,7 @@
   };
 
   // ---------- cetak ----------
-  // Di aplikasi Android (Capacitor), WebView tidak punya window.print(); dipakai plugin native "NativePrint" (lihat android-app/).
-  let nativePrint = null;
-  const getNativePrint = () => {
-    const C = window.Capacitor;
-    if (!nativePrint && C && C.isNativePlatform && C.isNativePlatform() && C.registerPlugin) nativePrint = C.registerPlugin('NativePrint');
-    return nativePrint;
-  };
   App.printHtml = function (html, css = '') {
-    const np = getNativePrint();
-    if (np) {
-      np.printHtml({ name: 'Dokumen toko', html: `<!doctype html><html><head><meta charset="utf-8"><style>${css}</style></head><body>${html}</body></html>` }).catch(App.fail);
-      return;
-    }
     const f = document.createElement('iframe');
     f.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0';
     document.body.appendChild(f);
@@ -156,6 +156,25 @@
     setTimeout(() => { try { f.contentWindow.focus(); f.contentWindow.print(); } catch (e) { App.fail(e); } setTimeout(() => f.remove(), 60000); }, 350);
   };
   const lines = (s) => esc(s || '').replace(/\n/g, '<br>');
+  // Rincian diskon & pajak sebuah transaksi -> [{label, amount, kind}] (dipakai struk, invoice, dan detail transaksi)
+  App.saleExtras = (sale) => {
+    const out = []; const sub = sale.subtotal || 0, disc = sale.discount || 0;
+    if (disc > 0) {
+      const pct = Number(sale.discount_pct) || 0;
+      if (pct > 0) {
+        const pctAmt = Math.min(Math.round(sub * pct / 100), disc), rpAmt = disc - pctAmt;
+        out.push({ label: `Diskon ${String(pct).replace('.', ',')}%`, amount: -pctAmt, kind: 'disc' });
+        if (rpAmt > 0) out.push({ label: 'Diskon Rp', amount: -rpAmt, kind: 'disc' });
+      } else out.push({ label: 'Diskon', amount: -disc, kind: 'disc' });
+    }
+    const tax = sale.tax_amount || 0;
+    if (tax > 0) {
+      const nm = (sale.store && sale.store.tax_name) || (S.settings && S.settings.tax_name) || 'PPN';
+      const rs = String(Number(sale.tax_rate) || 0).replace('.', ',');
+      out.push(sale.tax_mode === 'inclusive' ? { label: `Sudah termasuk ${nm} ${rs}%`, amount: tax, kind: 'taxin' } : { label: `${nm} ${rs}%`, amount: tax, kind: 'tax' });
+    }
+    return out;
+  };
   App.receiptHtml = (sale) => {
     const st = sale.store || S.settings; const w = st.paper_width === '80' ? 76 : 54;
     const css = `@page{size:${w + 4}mm auto;margin:0}body{width:${w}mm;margin:0 2mm;padding:2mm 0;font:11px/1.4 "Courier New",monospace;color:#000}.c{text-align:center}.b{font-weight:bold}.r{display:flex;justify-content:space-between;gap:6px}hr{border:0;border-top:1px dashed #000;margin:5px 0}.big{font-size:13px}`;
@@ -163,8 +182,8 @@
     const html = `<div class="c b big">${esc(st.store_name)}</div><div class="c">${lines(st.store_address)}</div><div class="c">Telp/WA: ${esc(st.store_phone)}</div><hr>
       ${sale.status === 'void' ? '<div class="c b big">*** DIBATALKAN ***</div>' : ''}
       <div>No   : ${esc(sale.invoice_no)}</div><div>Tgl  : ${esc(fmtDT(sale.created_at))}</div><div>Kasir: ${esc(sale.cashier || '-')}</div>${sale.customer_name ? `<div>Plgn : ${esc(sale.customer_name)}</div>` : ''}<hr>${items}<hr>
-      <div class="r"><span>Subtotal</span><span>${num(sale.subtotal)}</span></div>${sale.discount ? `<div class="r"><span>Diskon</span><span>-${num(sale.discount)}</span></div>` : ''}
-      <div class="r b big"><span>TOTAL</span><span>${num(sale.total)}</span></div>
+      <div class="r"><span>Subtotal</span><span>${num(sale.subtotal)}</span></div>${App.saleExtras(sale).filter((x) => x.kind !== 'taxin').map((x) => `<div class="r"><span>${esc(x.label)}</span><span>${x.amount < 0 ? '-' : ''}${num(Math.abs(x.amount))}</span></div>`).join('')}
+      <div class="r b big"><span>TOTAL</span><span>${num(sale.total)}</span></div>${App.saleExtras(sale).filter((x) => x.kind === 'taxin').map((x) => `<div class="r"><span>${esc(x.label)}</span><span>${num(x.amount)}</span></div>`).join('')}
       <div class="r"><span>Bayar (${esc(PAY[sale.payment_method] || sale.payment_method)})</span><span>${num(sale.paid)}</span></div>${sale.change_amount ? `<div class="r"><span>Kembali</span><span>${num(sale.change_amount)}</span></div>` : ''}<hr>
       <div class="c">${lines(st.receipt_footer)}</div>`;
     return { html, css };
@@ -173,10 +192,10 @@
     const st = sale.store || S.settings;
     const css = `@page{size:A4;margin:16mm}body{font:13px/1.5 system-ui,Arial,sans-serif;color:#111}h1{margin:0;font-size:26px;letter-spacing:.05em}table{width:100%;border-collapse:collapse;margin-top:14px}th{background:#f1ede3;text-align:left;padding:8px;font-size:11px;text-transform:uppercase}td{padding:8px;border-bottom:1px solid #e5e0d3}.r{text-align:right}.top{display:flex;justify-content:space-between;gap:20px}.tot td{border:0;padding:3px 8px}.stamp{display:inline-block;border:3px solid #2e7d5b;color:#2e7d5b;padding:2px 14px;font-weight:800;transform:rotate(-6deg);border-radius:6px}.stamp.v{border-color:#b3372f;color:#b3372f}.muted{color:#666}`;
     const rows = sale.items.map((i, n) => `<tr><td>${n + 1}</td><td>${esc(i.name)}</td><td class="r">${num(i.price)}</td><td class="r">${i.qty}</td><td class="r">${num(i.price * i.qty)}</td></tr>`).join('');
-    const html = `<div class="top"><div><b style="font-size:18px">${esc(st.store_name)}</b><div class="muted">${lines(st.store_address)}<br>Telp/WA: ${esc(st.store_phone)}</div></div><div class="r"><h1>INVOICE</h1><div><b>${esc(sale.invoice_no)}</b></div><div class="muted">${esc(fmtDT(sale.created_at))}</div></div></div>
-      <div style="margin-top:16px" class="top"><div><div class="muted">Kepada</div><b>${esc(sale.customer_name || 'Pelanggan Umum')}</b>${sale.customer_phone ? `<div>${esc(sale.customer_phone)}</div>` : ''}</div><div class="r"><span class="stamp ${sale.status === 'void' ? 'v' : ''}">${sale.status === 'void' ? 'DIBATALKAN' : 'LUNAS'}</span><div class="muted" style="margin-top:6px">Metode: ${esc(PAY[sale.payment_method] || sale.payment_method)} · Kasir: ${esc(sale.cashier || '-')}</div></div></div>
+    const html = `<div class="top"><div><b style="font-size:18px">${esc(st.store_name)}</b><div class="muted">${lines(st.store_address)}<br>Telp/WA: ${esc(st.store_phone)}</div></div><div class="r"><h1>${esc(sale.doc_title || 'INVOICE')}</h1><div><b>${esc(sale.invoice_no)}</b></div>${sale.order_no ? `<div class="muted">No. SO: ${esc(sale.order_no)}</div>` : ''}<div class="muted">${esc(fmtDT(sale.created_at))}</div></div></div>
+      <div style="margin-top:16px" class="top"><div><div class="muted">Kepada</div><b>${esc(sale.customer_name || 'Pelanggan Umum')}</b>${sale.customer_phone ? `<div>${esc(sale.customer_phone)}</div>` : ''}${sale.address ? `<div class="muted">${lines(sale.address)}</div>` : ''}</div><div class="r"><span class="stamp ${sale.status === 'void' || (sale.pay_status && sale.pay_status !== 'lunas') ? 'v' : ''}">${sale.status === 'void' ? 'DIBATALKAN' : sale.pay_status === 'belum' ? 'BELUM LUNAS' : sale.pay_status === 'sebagian' ? 'DIBAYAR SEBAGIAN' : 'LUNAS'}</span><div class="muted" style="margin-top:6px">${sale.pay_status === 'belum' ? '' : `Metode: ${esc(PAY[sale.payment_method] || sale.payment_method)} · `}${sale.doc_title ? 'Diterbitkan oleh' : 'Kasir'}: ${esc(sale.cashier || '-')}</div></div></div>
       <table><thead><tr><th>#</th><th>Barang</th><th class="r">Harga</th><th class="r">Qty</th><th class="r">Jumlah</th></tr></thead><tbody>${rows}</tbody></table>
-      <table class="tot" style="width:46%;margin-left:auto"><tr><td>Subtotal</td><td class="r">${rp(sale.subtotal)}</td></tr>${sale.discount ? `<tr><td>Diskon</td><td class="r">-${rp(sale.discount)}</td></tr>` : ''}<tr><td><b>TOTAL</b></td><td class="r"><b style="font-size:16px">${rp(sale.total)}</b></td></tr></table>
+      <table class="tot" style="width:46%;margin-left:auto"><tr><td>Subtotal</td><td class="r">${rp(sale.subtotal)}</td></tr>${App.saleExtras(sale).filter((x) => x.kind !== 'taxin').map((x) => `<tr><td>${esc(x.label)}</td><td class="r">${x.amount < 0 ? '-' : ''}${rp(Math.abs(x.amount))}</td></tr>`).join('')}<tr><td><b>TOTAL</b></td><td class="r"><b style="font-size:16px">${rp(sale.total)}</b></td></tr>${App.saleExtras(sale).filter((x) => x.kind === 'taxin').map((x) => `<tr><td class="muted">${esc(x.label)}</td><td class="r muted">${rp(x.amount)}</td></tr>`).join('')}${sale.pay_status === 'belum' || sale.pay_status === 'sebagian' ? `<tr><td>Sudah dibayar</td><td class="r">${rp(sale.paid_amount || 0)}</td></tr><tr><td><b>SISA TAGIHAN</b></td><td class="r"><b>${rp(sale.remaining)}</b></td></tr>` : ''}</table>
       <p class="muted" style="margin-top:30px">${lines(st.receipt_footer)}</p>`;
     return { html, css };
   };
@@ -201,31 +220,32 @@
   App.print = (o) => App.printHtml(o.html, o.css);
 
   // ---------- editor daftar barang (dipakai Transfer, PO, Pesanan) ----------
-  // opts: {items:[{product_id,qty,cost}], cost:bool, stock:'wh_qty'|'store_qty'|null, onChange, products}
+  // opts: {items:[{product_id,qty,cost}], cost:bool, stock:'all' (3 lokasi) | nama kolom qty | null, onChange, products}
   App.itemEditor = function (root, opts = {}) {
     let items = (opts.items || []).map((x) => ({ ...x }));
     const prods = () => opts.products || S.products;
     const byId = (id) => prods().find((p) => p.id === id);
+    const stkCols = !opts.stock ? [] : opts.stock === 'all' ? Object.keys(App.LOC).map((k) => ({ key: App.QTYKEY[k], label: App.LOC_SHORT[k] })) : [{ key: opts.stock, label: opts.stockLabel || 'Stok' }];
     root.innerHTML = `<div class="rel"><div class="scanbar"><input class="inp grow" data-s placeholder="Ketik nama / SKU, atau scan barcode lalu Enter" autocomplete="off"><button type="button" class="btn" data-cam title="Scan kamera">📷 Scan</button></div><div class="suggest hidden" data-sg></div></div>
-      <div class="tablewrap gap-s"><table class="t"><thead><tr><th>Barang</th>${opts.stock ? '<th class="num">Stok</th>' : ''}${opts.cost ? '<th class="num">Harga beli</th>' : ''}<th class="num" style="width:110px">Qty</th><th class="num">Jumlah</th><th></th></tr></thead><tbody data-rows></tbody><tfoot><tr><td colspan="${2 + (opts.stock ? 1 : 0) + (opts.cost ? 1 : 0)}" class="right"><b>Total</b></td><td class="num"><b data-tot>0</b></td><td></td></tr></tfoot></table></div>`;
+      <div class="tablewrap gap-s"><table class="t"><thead><tr><th>Barang</th>${stkCols.map((c) => `<th class="num">${c.label}</th>`).join('')}${opts.cost ? `<th class="num">${opts.costLabel || 'Harga beli'}</th>` : ''}<th class="num" style="width:110px">Qty</th>${opts.noTotal ? '' : '<th class="num">Jumlah</th>'}<th></th></tr></thead><tbody data-rows></tbody><tfoot${opts.noTotal ? ' hidden' : ''}><tr><td colspan="${2 + stkCols.length + (opts.cost ? 1 : 0)}" class="right"><b>Total</b></td><td class="num"><b data-tot>0</b></td><td></td></tr></tfoot></table></div>`;
     const inp = $('[data-s]', root), sg = $('[data-sg]', root), tb = $('[data-rows]', root);
     const total = () => items.reduce((a, i) => a + i.qty * (opts.cost ? i.cost : (byId(i.product_id)?.price || 0)), 0);
     const changed = () => { $('[data-tot]', root).textContent = num(total()); opts.onChange && opts.onChange(items); };
     const render = () => {
       tb.innerHTML = items.length ? items.map((it, idx) => { const p = byId(it.product_id) || { name: '#' + it.product_id, sku: '' }; const unit = opts.cost ? it.cost : p.price;
-        return `<tr data-i="${idx}"><td><b>${esc(p.name)}</b><div class="small muted">${esc(p.sku)}</div></td>${opts.stock ? `<td class="num">${num(p[opts.stock])}</td>` : ''}${opts.cost ? `<td class="num"><input class="inp" style="width:110px;text-align:right" type="number" min="0" data-cost value="${it.cost}"></td>` : ''}<td class="num"><input class="inp" style="width:90px;text-align:right" type="number" min="1" data-qty value="${it.qty}"></td><td class="num" data-sub>${num(it.qty * unit)}</td><td><button type="button" class="btn sm danger" data-del>✕</button></td></tr>`; }).join('')
+        return `<tr data-i="${idx}"><td><b>${esc(p.name)}</b><div class="small muted">${esc(p.sku)}</div></td>${stkCols.map((c) => `<td class="num">${num(p[c.key])}</td>`).join('')}${opts.cost ? `<td class="num"><input class="inp" style="width:110px;text-align:right" type="number" min="0" data-cost value="${it.cost}"></td>` : ''}<td class="num"><input class="inp" style="width:90px;text-align:right" type="number" min="1" data-qty value="${it.qty}"></td>${opts.noTotal ? '' : `<td class="num" data-sub>${num(it.qty * unit)}</td>`}<td><button type="button" class="btn sm danger" data-del>✕</button></td></tr>`; }).join('')
         : `<tr><td colspan="9" class="empty">Belum ada barang. Cari atau scan barang di atas.</td></tr>`;
       changed();
     };
     const add = (p, qty = 1) => {
       const ex = items.find((i) => i.product_id === p.id);
-      if (ex) ex.qty += qty; else items.push({ product_id: p.id, qty, cost: p.cost || 0 });
+      if (ex) ex.qty += qty; else items.push({ product_id: p.id, qty, cost: opts.costOf ? opts.costOf(p) : (p.cost || 0) });
       inp.value = ''; sg.classList.add('hidden'); render(); inp.focus();
     };
     const match = (t) => { t = t.toLowerCase(); return prods().filter((p) => `${p.name} ${p.sku} ${p.barcode || ''}`.toLowerCase().includes(t)).slice(0, 8); };
     const showSg = () => {
       const t = inp.value.trim(); if (!t) return sg.classList.add('hidden');
-      const m = match(t); sg.innerHTML = m.length ? m.map((p) => `<button type="button" data-id="${p.id}"><span>${esc(p.name)} <span class="muted small">${esc(p.sku)}</span></span><span class="small muted">stok ${p.store_qty}/${p.wh_qty}</span></button>`).join('') : '<div class="empty small">Tidak ditemukan</div>';
+      const m = match(t); sg.innerHTML = m.length ? m.map((p) => `<button type="button" data-id="${p.id}"><span>${esc(p.name)} <span class="muted small">${esc(p.sku)}</span></span><span class="small muted">stok ${p.display_qty}/${p.gt_qty}/${p.gr_qty}</span></button>`).join('') : '<div class="empty small">Tidak ditemukan</div>';
       sg.classList.remove('hidden');
     };
     inp.addEventListener('input', showSg);
@@ -241,7 +261,7 @@
       const tr = e.target.closest('tr[data-i]'); if (!tr) return; const it = items[+tr.dataset.i];
       if (e.target.matches('[data-qty]')) it.qty = Math.max(0, parseInt(e.target.value, 10) || 0);
       if (e.target.matches('[data-cost]')) it.cost = Math.max(0, parseInt(e.target.value, 10) || 0);
-      const p = byId(it.product_id); $('[data-sub]', tr).textContent = num(it.qty * (opts.cost ? it.cost : (p?.price || 0))); changed();
+      const p = byId(it.product_id); const sub = $('[data-sub]', tr); if (sub) sub.textContent = num(it.qty * (opts.cost ? it.cost : (p?.price || 0))); changed();
     });
     tb.addEventListener('click', (e) => { if (e.target.closest('[data-del]')) { items.splice(+e.target.closest('tr').dataset.i, 1); render(); } });
     render();
