@@ -1,16 +1,20 @@
 {
-  "name": "toko-rohani",
+  "name": "hosana",
   "version": "1.0.0",
   "private": true,
-  "description": "Sistem toko asesoris rohani: kasir, stok toko & gudang, purchase order, pemesanan online, laporan",
+  "description": "Hosana, sistem toko asesoris rohani: kasir, stok toko & gudang, purchase order, Sales Order (SO) online, laporan",
   "main": "server.js",
-  "engines": { "node": ">=22.13" },
+  "engines": {
+    "node": ">=22.13"
+  },
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "test": "node tests/safeguards.test.js && node tests/run-smoke.js",
+    "test": "node tests/safeguards.test.js && node tests/backup.test.js && node tests/gudang.test.js && node tests/lokasi.test.js && node tests/kartu.test.js && node tests/kartu_lama.test.js && node tests/kasir.test.js && node tests/retur.test.js && node tests/diskonpajak.test.js && node tests/roles.test.js && node tests/detailrole.test.js && node tests/invoice.test.js && node tests/permintaan.test.js && node tests/tailscale.test.js && node tests/run-smoke.js",
     "vendor": "node scripts/vendor.js",
-    "cert": "node scripts/make-cert.js"
+    "cert": "node scripts/make-cert.js",
+    "reset-password": "node scripts/reset-password.js",
+    "tailscale": "node scripts/tailscale-info.js"
   },
   "devDependencies": {
     "html5-qrcode": "^2.3.8"
