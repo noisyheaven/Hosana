@@ -100,7 +100,7 @@
     $('#sheet').innerHTML = head('Lacak pesanan') + `<form class="sh-b" id="tf"><label class="f" for="tn">Nomor pesanan</label><input class="inp" id="tn" value="${esc(last.no || '')}" placeholder="ORD-20260101-0001" autocapitalize="characters">
       <label class="f" for="tp">Nomor HP yang dipakai memesan</label><input class="inp" id="tp" inputmode="tel" value="${esc(last.phone || '')}">
       <div class="err" role="alert">${esc(errMsg || '')}</div><button class="btn" style="margin-top:10px" type="submit">Cek status</button>
-      ${res ? `<div class="box" style="margin-top:16px"><div><span class="st">${esc(({ baru: 'Baru masuk', diproses: 'Sedang diproses', dikirim: 'Dikirim', selesai: 'Selesai', batal: 'Dibatalkan' })[res.status] || res.status)}</span> <span class="small muted">${res.payment_status === 'lunas' ? 'Sudah dibayar' : 'Belum dibayar'}</span></div>
+      ${res ? `<div class="box" style="margin-top:16px"><div><span class="st">${esc(({ baru: 'Baru masuk', diproses: 'Sedang diproses', dikirim: 'Dikirim', selesai: 'Selesai', batal: 'Dibatalkan' })[res.status] || res.status)}</span> <span class="small muted">${res.payment_status === 'lunas' ? 'Sudah dibayar' : res.payment_status === 'sebagian' ? 'Dibayar sebagian' : 'Belum dibayar'}</span></div>
       <ul class="items">${res.items.map((i) => `<li><span>${i.qty} × ${esc(i.name)}</span><span>${rp(i.qty * i.price)}</span></li>`).join('')}<li><b>Total</b><b>${rp(res.total)}</b></li></ul></div>` : ''}</form>`;
     $('#tf').onsubmit = async (e) => {
       e.preventDefault(); const no = $('#tn').value.trim(), ph = $('#tp').value.trim();
@@ -129,7 +129,7 @@
   (async () => {
     try {
       [info, cats] = await Promise.all([api('/info'), api('/categories')]);
-      document.title = info.store_name || document.title; $('#logo').textContent = info.store_name || 'Toko Asesoris Rohani';
+      document.title = info.store_name || document.title; $('#logo').textContent = info.store_name || 'Hosana';
       $('#foot').innerHTML = `<b>${esc(info.store_name)}</b><div>${esc(info.store_address || '')}</div>${info.store_phone ? `<div>WhatsApp: ${esc(info.store_phone)}</div>` : ''}`;
       drawCats(); await load();
     } catch (e) { $('#grid').innerHTML = `<p class="empty">${esc(e.message)}</p>`; }
