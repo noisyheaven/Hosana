@@ -1,0 +1,61 @@
+// Tes Permintaan Barang (toko -> gudang -> konfirmasi terima). Jalankan: node tests/permintaan.test.js
+const { spawn } = require('child_process');
+const fs = require('fs'), os = require('os'), path = require('path');
+let ok = 0, fail = 0;
+const chk = (n, c, x = '') => { c ? ok++ : fail++; console.log(`  ${c ? 'OK  ' : 'FAIL'} ${n}${c ? '' : ' -> ' + String(x).slice(0, 300)}`); };
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'toko-rq-'));
+const PORT = 3198, B = `http://127.0.0.1:${PORT}`;
+const srv = spawn(process.execPath, [path.join(__dirname, '..', 'server.js')], { env: { ...process.env, DATA_DIR: dir, PORT, HTTPS: '0' }, stdio: 'ignore' });
+const k = async (m, p, body, token) => { const r = await fetch(B + p, { method: m, headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}) }, body: body ? JSON.stringify(body) : undefined }); let d = null; try { d = await r.json(); } catch {} return { s: r.status, d }; };
+(async () => {
+  for (let i = 0; i < 40; i++) { try { await fetch(B + '/api/ping'); break; } catch { await sleep(200); } }
+  const tk = async (u, p) => (await k('POST', '/api/login', { username: u, password: p })).d.token;
+  const A = await tk('superadmin', 'super123'), G = await tk('admingudang', 'gudang123'), F = await tk('staf', 'staf123');
+  const prod = async (bc) => (await k('GET', '/api/products/barcode/' + bc, null, A)).d;
+  const p1 = await prod('RH-0001'), p2 = await prod('RH-0002');
+  await k('POST', '/api/stock/adjust', { product_id: p1.id, location: 'gudang_ruko', mode: 'set', qty: 20 }, A);
+  await k('POST', '/api/stock/adjust', { product_id: p2.id, location: 'gudang_ruko', mode: 'set', qty: 3 }, A);
+  const s0 = await prod('RH-0001'), s2 = await prod('RH-0002');
+
+  chk('gudang TIDAK boleh membuat permintaan', (await k('POST', '/api/requests', { items: [{ product_id: p1.id, qty: 1 }] }, G)).s === 403);
+  chk('permintaan kosong ditolak', (await k('POST', '/api/requests', { items: [] }, F)).s === 400);
+  const r = await k('POST', '/api/requests', { items: [{ product_id: p1.id, qty: 10 }, { product_id: p2.id, qty: 8 }], note: 'etalase kosong', urgent: true }, F);
+  chk('staf kasir membuat permintaan (nomor REQ-, mendesak)', r.s === 200 && /^REQ-\d{8}-0001$/.test(r.d.number) && r.d.urgent === 1 && r.d.status === 'requested', JSON.stringify(r.d));
+  chk('ditandai stok gudang kurang (butuh 8, ada 3)', r.d.has_short === true && r.d.items.find((i) => i.product_id === p2.id).short === true);
+  const id = r.d.id;
+  chk('gudang melihat daftar permintaan berjalan', (await k('GET', '/api/requests?status=open', null, G)).d.some((x) => x.id === id));
+  chk('staf kasir TIDAK boleh memproses (prepare/ship)', (await k('POST', `/api/requests/${id}/prepare`, {}, F)).s === 403 && (await k('POST', `/api/requests/${id}/ship`, { items: [] }, F)).s === 403);
+  const prep = await k('POST', `/api/requests/${id}/prepare`, {}, G);
+  chk('gudang mulai menyiapkan', prep.s === 200 && prep.d.status === 'preparing');
+  chk('sudah diproses: tidak bisa dibatalkan pembuatnya', (await k('POST', `/api/requests/${id}/cancel`, {}, F)).s === 400);
+  const it1 = prep.d.items.find((i) => i.product_id === p1.id), it2 = prep.d.items.find((i) => i.product_id === p2.id);
+  chk('kirim melebihi stok gudang ditolak', (await k('POST', `/api/requests/${id}/ship`, { items: [{ item_id: it1.id, qty: 10 }, { item_id: it2.id, qty: 8 }], note: 'x' }, G)).s === 400);
+  chk('kirim kurang dari permintaan tanpa catatan ditolak', (await k('POST', `/api/requests/${id}/ship`, { items: [{ item_id: it1.id, qty: 10 }, { item_id: it2.id, qty: 3 }] }, G)).s === 400);
+  chk('kirim melebihi jumlah diminta ditolak', (await k('POST', `/api/requests/${id}/ship`, { items: [{ item_id: it1.id, qty: 11 }, { item_id: it2.id, qty: 3 }], note: 'x' }, G)).s === 400);
+  const ship = await k('POST', `/api/requests/${id}/ship`, { items: [{ item_id: it1.id, qty: 10 }, { item_id: it2.id, qty: 3 }], note: 'stok gudang tinggal 3' }, G);
+  chk('gudang mengirim sebagian dengan catatan', ship.s === 200 && ship.d.status === 'shipped', JSON.stringify(ship.d));
+  const a1 = await prod('RH-0001'), a2 = await prod('RH-0002');
+  chk('stok GUDANG berkurang saat kirim, stok TOKO belum berubah', a1.gr_qty === s0.gr_qty - 10 && a2.gr_qty === s2.gr_qty - 3 && a1.display_qty === s0.display_qty && a2.display_qty === s2.display_qty, JSON.stringify([a1, a2]));
+  chk('gudang TIDAK boleh konfirmasi terima', (await k('POST', `/api/requests/${id}/receive`, { items: [] }, G)).s === 403);
+  chk('diterima melebihi yang dikirim ditolak', (await k('POST', `/api/requests/${id}/receive`, { items: [{ item_id: it1.id, qty: 11 }, { item_id: it2.id, qty: 3 }] }, F)).s === 400);
+  chk('diterima kurang tanpa catatan selisih ditolak', (await k('POST', `/api/requests/${id}/receive`, { items: [{ item_id: it1.id, qty: 9 }, { item_id: it2.id, qty: 3 }] }, F)).s === 400);
+  const rc = await k('POST', `/api/requests/${id}/receive`, { items: [{ item_id: it1.id, qty: 9 }, { item_id: it2.id, qty: 3 }], note: '1 pecah di jalan' }, F);
+  chk('toko konfirmasi terima dengan selisih (ditandai)', rc.s === 200 && rc.d.status === 'received' && rc.d.discrepancy === true, JSON.stringify(rc.d));
+  const b1 = await prod('RH-0001'), b2 = await prod('RH-0002');
+  chk('stok TOKO bertambah sebesar yang DITERIMA (9 dan 3)', b1.display_qty === s0.display_qty + 9 && b2.display_qty === s2.display_qty + 3, JSON.stringify([b1.display_qty, s0.display_qty]));
+  const mv = (await k('GET', `/api/stock/movements?product_id=${p1.id}&limit=10`, null, A)).d;
+  chk('riwayat mutasi mencatat ref nomor permintaan (keluar & masuk)', mv.some((m) => m.ref === r.d.number && m.type === 'transfer_out') && mv.some((m) => m.ref === r.d.number && m.type === 'transfer_in'));
+  chk('tidak bisa diterima dua kali', (await k('POST', `/api/requests/${id}/receive`, { items: [] }, F)).s === 400);
+  // batal & tolak
+  const r2 = (await k('POST', '/api/requests', { items: [{ product_id: p1.id, qty: 2 }] }, F)).d;
+  chk('pembuat boleh membatalkan permintaan baru', (await k('POST', `/api/requests/${r2.id}/cancel`, {}, F)).d.status === 'cancelled');
+  const r3 = (await k('POST', '/api/requests', { items: [{ product_id: p1.id, qty: 2 }] }, A)).d;
+  chk('menolak wajib beralasan', (await k('POST', `/api/requests/${r3.id}/reject`, {}, G)).s === 400);
+  const rj = await k('POST', `/api/requests/${r3.id}/reject`, { reason: 'barang sedang opname' }, G);
+  chk('gudang menolak dengan alasan', rj.d.status === 'rejected' && rj.d.reject_reason === 'barang sedang opname');
+  const r4 = (await k('POST', '/api/requests', { items: [{ product_id: p1.id, qty: 1 }] }, A)).d;
+  chk('gudang tak bisa mengirim jumlah 0 semua', (await k('POST', `/api/requests/${r4.id}/ship`, { items: [{ item_id: r4.items[0].id, qty: 0 }], note: 'x' }, G)).s === 400);
+  chk('daftar "selesai/batal" memuat yang sudah tutup', (await k('GET', '/api/requests?status=closed', null, F)).d.length === 3);
+  console.log(`\nHASIL: ${ok} lulus, ${fail} gagal`); srv.kill(); process.exit(fail ? 1 : 0);
+})().catch((e) => { srv.kill(); console.error(e); process.exit(1); });
